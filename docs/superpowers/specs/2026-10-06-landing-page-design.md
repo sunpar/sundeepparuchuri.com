@@ -14,18 +14,19 @@ redeploys it with no manual steps.
 - Deploys follow the pattern in the other repos: GitHub Actions running `wrangler`
   with a `CLOUDFLARE_API_TOKEN` repo secret and account ID
   `25f64b68ea2441b677f6788b470be590`.
-- Existing subdomain records (`until`, `ridgewoodtax`, `wm`, `wm-api`) are not touched.
+- Existing subdomain records (`until`, `ridgewoodtax`, `stackline`, `wm`, `wm-api`) are not touched.
 
 ## Page content
 
 - Heading: Sundeep Paruchuri.
 - Link to `https://github.com/sunpar`. No bio, LinkedIn, or email.
-- Three app cards, each with a name, a one-line description, and a link:
+- Four app cards, each with a name, a one-line description, and a link:
 
 | App            | URL                                         | Description                                | Label                      |
 | -------------- | ------------------------------------------- | ------------------------------------------ | -------------------------- |
 | Until          | `https://until.sundeepparuchuri.com`        | Household routines and reminders           | Private · sign-in required |
 | Ridgewood      | `https://ridgewoodtax.sundeepparuchuri.com` | Municipal finance for Ridgewood, NJ        | Private · sign-in required |
+| Stackline      | `https://stackline.sundeepparuchuri.com`    | Poker sessions, bankroll, and analytics    | Private · sign-in required |
 | Wealth Manager | `https://wm.sundeepparuchuri.com`           | Portfolio, net worth, and spending tracker | none                       |
 
 `wm-api` is a backend and is not listed.
@@ -84,7 +85,7 @@ apex currently has no record, so there is nothing to conflict with.
 - CI dry-run catches invalid `wrangler.jsonc` before merge.
 - Post-deploy smoke test confirms the live page is served.
 - Manual check after first deploy: apex and `www` load over HTTPS, `www`
-  redirects to the apex, all three app links open, layout holds at phone width
+  redirects to the apex, all four app links open, layout holds at phone width
   and in dark mode.
 
 ## Out of scope

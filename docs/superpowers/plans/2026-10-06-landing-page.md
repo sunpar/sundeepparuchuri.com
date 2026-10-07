@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Serve a public homepage at `https://sundeepparuchuri.com` that links to the Until, Ridgewood, and Wealth Manager subdomain apps, deployed from GitHub to Cloudflare.
+**Goal:** Serve a public homepage at `https://sundeepparuchuri.com` that links to the Until, Ridgewood, Stackline, and Wealth Manager subdomain apps, deployed from GitHub to Cloudflare.
 
 **Architecture:** Static HTML/CSS in `public/`, served by a Cloudflare Worker with static assets only (no Worker script). The apex custom domain is declared in `wrangler.jsonc`. GitHub Actions checks every PR and deploys on push to `main`.
 
@@ -20,9 +20,10 @@
 - App cards, exactly:
   - Until — `https://until.sundeepparuchuri.com` — "Household routines and reminders" — "Private · sign-in required"
   - Ridgewood — `https://ridgewoodtax.sundeepparuchuri.com` — "Municipal finance for Ridgewood, NJ" — "Private · sign-in required"
+  - Stackline — `https://stackline.sundeepparuchuri.com` — "Poker sessions, bankroll, and analytics" — "Private · sign-in required"
   - Wealth Manager — `https://wm.sundeepparuchuri.com` — "Portfolio, net worth, and spending tracker" — no label
 - Only other link: `https://github.com/sunpar`. `wm-api` is never linked.
-- Existing DNS records for `until`, `ridgewoodtax`, `wm`, `wm-api` are not touched.
+- Existing DNS records for `until`, `ridgewoodtax`, `stackline`, `wm`, `wm-api` are not touched.
 - Every edited file is formatted with prettier.
 
 ## Review Focus
@@ -115,10 +116,11 @@ test("page is titled with Sundeep's name", () => {
   assert.match(html, /<h1>Sundeep Paruchuri<\/h1>/);
 });
 
-test("links only to GitHub and the three apps", () => {
+test("links only to GitHub and the four apps", () => {
   assert.deepEqual(externalLinks.sort(), [
     "https://github.com/sunpar",
     "https://ridgewoodtax.sundeepparuchuri.com",
+    "https://stackline.sundeepparuchuri.com",
     "https://until.sundeepparuchuri.com",
     "https://wm.sundeepparuchuri.com",
   ]);
@@ -141,6 +143,11 @@ test("each app card has its name and description", () => {
       "Municipal finance for Ridgewood, NJ",
     ],
     [
+      "https://stackline.sundeepparuchuri.com",
+      "Stackline",
+      "Poker sessions, bankroll, and analytics",
+    ],
+    [
       "https://wm.sundeepparuchuri.com",
       "Wealth Manager",
       "Portfolio, net worth, and spending tracker",
@@ -160,6 +167,7 @@ test("only the private apps are labelled as needing sign-in", () => {
   assert.ok(
     cardFor("https://ridgewoodtax.sundeepparuchuri.com").includes(label),
   );
+  assert.ok(cardFor("https://stackline.sundeepparuchuri.com").includes(label));
   assert.ok(!cardFor("https://wm.sundeepparuchuri.com").includes(label));
 });
 
@@ -222,6 +230,15 @@ Expected: FAIL — `ENOENT` reading `public/index.html`.
               <span class="app-name">Ridgewood</span>
               <span class="app-description"
                 >Municipal finance for Ridgewood, NJ</span
+              >
+              <span class="app-access">Private · sign-in required</span>
+            </a>
+          </li>
+          <li>
+            <a class="app" href="https://stackline.sundeepparuchuri.com">
+              <span class="app-name">Stackline</span>
+              <span class="app-description"
+                >Poker sessions, bankroll, and analytics</span
               >
               <span class="app-access">Private · sign-in required</span>
             </a>
@@ -383,7 +400,7 @@ Confirm by reading `public/styles.css`:
 - `a:focus-visible` sets a visible outline (keyboard focus).
 
 Then run `npx wrangler dev --port 8787` in the background and check:
-`curl -s localhost:8787/ | grep -c "app-name"` → `3`;
+`curl -s localhost:8787/ | grep -c "app-name"` → `4`;
 `curl -s -o /dev/null -w "%{http_code}" localhost:8787/styles.css` → `200`. Stop the dev server.
 
 - [ ] **Step 7: Commit**
@@ -608,8 +625,8 @@ Expected: `200`.
 
 - [ ] **Step 5: Verify the app links resolve**
 
-Run: `for h in until ridgewoodtax wm; do curl -s -o /dev/null -w "$h %{http_code}\n" https://$h.sundeepparuchuri.com/; done`
-Expected: `until 302`, `ridgewoodtax 302` (Cloudflare Access login), `wm 200`.
+Run: `for h in until ridgewoodtax stackline wm; do curl -s -o /dev/null -w "$h %{http_code}\n" https://$h.sundeepparuchuri.com/; done`
+Expected: `until 302`, `ridgewoodtax 302`, `stackline 302` (Cloudflare Access login), `wm 200`.
 
 - [ ] **Step 6: Verify www redirect and 404**
 

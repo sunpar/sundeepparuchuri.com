@@ -73,10 +73,10 @@ apex currently has no record, so there is nothing to conflict with.
 2. Create a Cloudflare API token from the "Edit Cloudflare Workers" template,
    scoped to the account and the `sundeepparuchuri.com` zone; save it as the
    repo secret `CLOUDFLARE_API_TOKEN`.
-3. In the Cloudflare DNS dashboard, delete the `www` CNAME that points to the
-   nonexistent `wmanager.sundeepparuchuri.com`.
-4. Add a proxied `www` record (`AAAA 100::`) and a Redirect Rule:
-   `www.sundeepparuchuri.com/*` → `https://sundeepparuchuri.com/${1}`, 301,
+3. Done 2026-10-06: the `www` CNAME (previously pointing at the nonexistent
+   `wmanager.sundeepparuchuri.com`) now targets `sundeepparuchuri.com`, proxied.
+4. Done 2026-10-06: Redirect Rule "Redirect www to apex":
+   `*://www.sundeepparuchuri.com/*` → `https://sundeepparuchuri.com/${2}`, 301,
    preserving the query string.
 
 ## Testing

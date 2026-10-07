@@ -549,9 +549,9 @@ The domain is registered at Squarespace; DNS and hosting are on Cloudflare.
    this account and the `sundeepparuchuri.com` zone. Save it as the repo secret
    `CLOUDFLARE_API_TOKEN`.
 2. The first deploy creates the apex DNS record and certificate.
-3. `www`: a proxied `AAAA 100::` record plus a Redirect Rule
-   `https://www.sundeepparuchuri.com/*` → `https://sundeepparuchuri.com/${1}`
-   (301, query string preserved).
+3. `www`: a proxied CNAME to `sundeepparuchuri.com` plus the Redirect Rule
+   "Redirect www to apex": `*://www.sundeepparuchuri.com/*` →
+   `https://sundeepparuchuri.com/${2}` (301, query string preserved).
 ````
 
 - [ ] **Step 7: Format, test, commit**

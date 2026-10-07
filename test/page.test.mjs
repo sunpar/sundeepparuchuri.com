@@ -87,3 +87,15 @@ test("local assets referenced by the page exist", async () => {
     await access(new URL(`../public${ref}`, import.meta.url));
   }
 });
+
+test("worker serves public/ on the apex custom domain", async () => {
+  const config = JSON.parse(
+    await readFile(new URL("../wrangler.jsonc", import.meta.url), "utf8"),
+  );
+  assert.equal(config.name, "sundeepparuchuri-com");
+  assert.equal(config.assets.directory, "./public");
+  assert.equal(config.main, undefined);
+  assert.deepEqual(config.routes, [
+    { pattern: "sundeepparuchuri.com", custom_domain: true },
+  ]);
+});

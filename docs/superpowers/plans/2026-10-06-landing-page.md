@@ -20,7 +20,7 @@
 - App cards, exactly:
   - Until — `https://until.sundeepparuchuri.com` — "Household routines and reminders" — "Private · sign-in required"
   - Ridgewood — `https://ridgewoodtax.sundeepparuchuri.com` — "Municipal finance for Ridgewood, NJ" — "Private · sign-in required"
-  - Stackline — `https://stackline.sundeepparuchuri.com` — "Poker sessions, bankroll, and analytics" — "Private · sign-in required"
+  - Stackline — `https://stackline.sundeepparuchuri.com` — "Poker and sports betting: bankroll and analytics" — "Private · sign-in required"
   - Wealth Manager — `https://wm.sundeepparuchuri.com` — "Portfolio, net worth, and spending tracker" — no label
 - Only other link: `https://github.com/sunpar`. `wm-api` is never linked.
 - Existing DNS records for `until`, `ridgewoodtax`, `stackline`, `wm`, `wm-api` are not touched.
@@ -145,7 +145,7 @@ test("each app card has its name and description", () => {
     [
       "https://stackline.sundeepparuchuri.com",
       "Stackline",
-      "Poker sessions, bankroll, and analytics",
+      "Poker and sports betting: bankroll and analytics",
     ],
     [
       "https://wm.sundeepparuchuri.com",
@@ -238,7 +238,7 @@ Expected: FAIL — `ENOENT` reading `public/index.html`.
             <a class="app" href="https://stackline.sundeepparuchuri.com">
               <span class="app-name">Stackline</span>
               <span class="app-description"
-                >Poker sessions, bankroll, and analytics</span
+                >Poker and sports betting: bankroll and analytics</span
               >
               <span class="app-access">Private · sign-in required</span>
             </a>

@@ -16,4 +16,13 @@
     <path d="M222 112 v12 a30 10 0 0 0 60 0 v-12" fill="#FBFBF7"/>
     <ellipse cx="252" cy="112" rx="30" ry="10" fill="#D8483B"/>
   </g>
+  <g transform="rotate(-30 254 58)">
+    <ellipse cx="254" cy="58" rx="30" ry="18" fill="#9A5B34" stroke="#0B2E1F" stroke-width="4"/>
+    <g stroke="#FBFBF7" stroke-width="3" stroke-linecap="round">
+      <line x1="240" y1="58" x2="268" y2="58"/>
+      <line x1="246" y1="53" x2="246" y2="63"/>
+      <line x1="254" y1="53" x2="254" y2="63"/>
+      <line x1="262" y1="53" x2="262" y2="63"/>
+    </g>
+  </g>
 </svg>

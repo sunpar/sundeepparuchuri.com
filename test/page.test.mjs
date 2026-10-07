@@ -50,7 +50,7 @@ test("each app card has its name and description", () => {
     [
       "https://stackline.sundeepparuchuri.com",
       "Stackline",
-      "Poker sessions, bankroll, and analytics",
+      "Poker and sports betting: bankroll and analytics",
     ],
     [
       "https://wm.sundeepparuchuri.com",

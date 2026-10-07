@@ -22,11 +22,11 @@ redeploys it with no manual steps.
 - Link to `https://github.com/sunpar`. No bio, LinkedIn, or email.
 - Three app cards, each with a name, a one-line description, and a link:
 
-| App            | URL                                         | Description                                       | Label                      |
-| -------------- | ------------------------------------------- | ------------------------------------------------- | -------------------------- |
-| Until          | `https://until.sundeepparuchuri.com`        | Household routines and reminders                  | Private · sign-in required |
-| Ridgewood      | `https://ridgewoodtax.sundeepparuchuri.com` | Source-traced municipal finance for Ridgewood, NJ | Private · sign-in required |
-| Wealth Manager | `https://wm.sundeepparuchuri.com`           | Portfolio, net worth, and spending tracker        | none                       |
+| App            | URL                                         | Description                                | Label                      |
+| -------------- | ------------------------------------------- | ------------------------------------------ | -------------------------- |
+| Until          | `https://until.sundeepparuchuri.com`        | Household routines and reminders           | Private · sign-in required |
+| Ridgewood      | `https://ridgewoodtax.sundeepparuchuri.com` | Municipal finance for Ridgewood, NJ        | Private · sign-in required |
+| Wealth Manager | `https://wm.sundeepparuchuri.com`           | Portfolio, net worth, and spending tracker | none                       |
 
 `wm-api` is a backend and is not listed.
 

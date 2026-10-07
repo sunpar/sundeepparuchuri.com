@@ -50,7 +50,7 @@ test("each app card has its name and description", () => {
     [
       "https://stackline.sundeepparuchuri.com",
       "Stackline",
-      "Poker sessions, bankroll, and analytics",
+      "Poker and sports betting: bankroll and analytics",
     ],
     [
       "https://wm.sundeepparuchuri.com",
@@ -82,7 +82,11 @@ test("page ships no JavaScript", () => {
 
 test("local assets referenced by the page exist", async () => {
   const localRefs = hrefs.filter((href) => href.startsWith("/"));
-  assert.deepEqual(localRefs.sort(), ["/favicon.svg", "/styles.css"]);
+  assert.deepEqual(localRefs.sort(), [
+    "/favicon.svg",
+    "/fonts/bricolage-grotesque-latin.woff2",
+    "/styles.css",
+  ]);
   for (const ref of localRefs) {
     await access(new URL(`../public${ref}`, import.meta.url));
   }
@@ -98,4 +102,32 @@ test("worker serves public/ on the apex custom domain", async () => {
   assert.deepEqual(config.routes, [
     { pattern: "sundeepparuchuri.com", custom_domain: true },
   ]);
+});
+
+test("each app card shows its decorative illustration", async () => {
+  const illustrations = [
+    ["https://until.sundeepparuchuri.com", "/img/until.svg"],
+    ["https://ridgewoodtax.sundeepparuchuri.com", "/img/ridgewood.svg"],
+    ["https://stackline.sundeepparuchuri.com", "/img/stackline.svg"],
+    ["https://wm.sundeepparuchuri.com", "/img/wealth-manager.svg"],
+  ];
+  for (const [url, src] of illustrations) {
+    const card = cardFor(url);
+    assert.match(card, new RegExp(`<img[^>]*src="${src}"[^>]*alt=""`));
+    await access(new URL(`../public${src}`, import.meta.url));
+  }
+});
+
+test("fonts referenced by the stylesheet exist", async () => {
+  const css = await readFile(
+    new URL("../public/styles.css", import.meta.url),
+    "utf8",
+  );
+  const fontUrls = [...css.matchAll(/url\("(\/fonts\/[^"]+)"\)/g)].map(
+    ([, url]) => url,
+  );
+  assert.ok(fontUrls.length > 0, "stylesheet loads no self-hosted font");
+  for (const url of fontUrls) {
+    await access(new URL(`../public${url}`, import.meta.url));
+  }
 });

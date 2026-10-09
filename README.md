@@ -17,8 +17,13 @@ Pushing to `main` runs `.github/workflows/deploy.yml`: format check, tests,
 `wrangler deploy`, then a smoke test against the live site. Pull requests run
 everything except the deploy.
 
-To add an app, add an `<li>` card to `public/index.html` and its URL to the
-expected-links test in `test/page.test.mjs`.
+To add an app:
+
+1. Add an `<li>` card to `public/index.html`, with an `app--<name>` class.
+2. Add its illustration to `public/img/` and its tile colour to
+   `public/styles.css` (a `--<name>` token and an `.app--<name>` rule).
+3. In `test/page.test.mjs`, add the app to the expected links, the
+   name-and-description list and the illustration list.
 
 ## One-time Cloudflare setup
 

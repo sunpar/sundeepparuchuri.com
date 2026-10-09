@@ -67,20 +67,18 @@ test("each app card has its name and description", () => {
   for (const [url, name, description] of expected) {
     const card = cardFor(url);
     assert.ok(card, `missing card for ${url}`);
-    assert.ok(card.includes(name), `${url} card missing name ${name}`);
+    assert.ok(
+      card.includes(`<span class="app-name">${name}</span>`),
+      `${url} card missing name ${name}`,
+    );
     assert.ok(card.includes(description), `${url} card missing description`);
   }
 });
 
-test("only the private apps are labelled as needing sign-in", () => {
-  const label = "Private · sign-in required";
-  assert.ok(cardFor("https://until.sundeepparuchuri.com").includes(label));
-  assert.ok(
-    cardFor("https://ridgewoodtax.sundeepparuchuri.com").includes(label),
-  );
-  assert.ok(cardFor("https://stackline.sundeepparuchuri.com").includes(label));
-  assert.ok(cardFor("https://poolboard.sundeepparuchuri.com").includes(label));
-  assert.ok(!cardFor("https://wm.sundeepparuchuri.com").includes(label));
+test("every app is labelled as needing sign-in", () => {
+  for (const card of appCards) {
+    assert.ok(card.includes("Private · sign-in required"));
+  }
 });
 
 test("page ships no JavaScript", () => {
@@ -106,6 +104,7 @@ test("worker serves public/ on the apex custom domain", async () => {
   assert.equal(config.name, "sundeepparuchuri-com");
   assert.equal(config.assets.directory, "./public");
   assert.equal(config.main, undefined);
+  assert.equal(config.assets.not_found_handling, "404-page");
   assert.deepEqual(config.routes, [
     { pattern: "sundeepparuchuri.com", custom_domain: true },
   ]);
@@ -138,4 +137,12 @@ test("fonts referenced by the stylesheet exist", async () => {
   for (const url of fontUrls) {
     await access(new URL(`../public${url}`, import.meta.url));
   }
+});
+
+test("unknown paths get a 404 page that links home", async () => {
+  const page = await readFile(
+    new URL("../public/404.html", import.meta.url),
+    "utf8",
+  );
+  assert.match(page, /href="\/"/);
 });

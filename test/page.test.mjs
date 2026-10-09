@@ -21,9 +21,10 @@ test("page is titled with Sundeep's name", () => {
   assert.match(html, /<h1>Sundeep Paruchuri<\/h1>/);
 });
 
-test("links only to GitHub and the four apps", () => {
+test("links only to GitHub and the five apps", () => {
   assert.deepEqual(externalLinks.sort(), [
     "https://github.com/sunpar",
+    "https://poolboard.sundeepparuchuri.com",
     "https://ridgewoodtax.sundeepparuchuri.com",
     "https://stackline.sundeepparuchuri.com",
     "https://until.sundeepparuchuri.com",
@@ -53,6 +54,11 @@ test("each app card has its name and description", () => {
       "Poker and sports betting: bankroll and analytics",
     ],
     [
+      "https://poolboard.sundeepparuchuri.com",
+      "Poolboard",
+      "NFL Survivor and Pick’em pool tracker",
+    ],
+    [
       "https://wm.sundeepparuchuri.com",
       "Wealth Manager",
       "Portfolio, net worth, and spending tracker",
@@ -73,6 +79,7 @@ test("only the private apps are labelled as needing sign-in", () => {
     cardFor("https://ridgewoodtax.sundeepparuchuri.com").includes(label),
   );
   assert.ok(cardFor("https://stackline.sundeepparuchuri.com").includes(label));
+  assert.ok(cardFor("https://poolboard.sundeepparuchuri.com").includes(label));
   assert.ok(!cardFor("https://wm.sundeepparuchuri.com").includes(label));
 });
 
@@ -109,6 +116,7 @@ test("each app card shows its decorative illustration", async () => {
     ["https://until.sundeepparuchuri.com", "/img/until.svg"],
     ["https://ridgewoodtax.sundeepparuchuri.com", "/img/ridgewood.svg"],
     ["https://stackline.sundeepparuchuri.com", "/img/stackline.svg"],
+    ["https://poolboard.sundeepparuchuri.com", "/img/poolboard.svg"],
     ["https://wm.sundeepparuchuri.com", "/img/wealth-manager.svg"],
   ];
   for (const [url, src] of illustrations) {

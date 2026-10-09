@@ -16,6 +16,7 @@
   --until: #f2a93b;
   --ridgewood: #2d5da8;
   --stackline: #1f6b4a;
+  --poolboard: #b8432f;
   --wealth-manager: #0f4c5c;
 }
 
@@ -120,6 +121,10 @@ a {
 
 .app--stackline {
   --tile: var(--stackline);
+}
+
+.app--poolboard {
+  --tile: var(--poolboard);
 }
 
 .app--wealth-manager {

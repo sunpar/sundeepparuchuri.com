@@ -3,13 +3,23 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "wrangler dev",
+    "dev": "wrangler dev --local",
     "test": "node --test",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "deps": "node scripts/local-checks.mjs deps",
+    "hooks": "git config core.hooksPath .githooks",
+    "smoke": "node scripts/local-checks.mjs smoke",
+    "verify": "node scripts/local-checks.mjs full",
+    "coverage": "node scripts/local-checks.mjs coverage",
+    "pr:check": "node scripts/git-gate.mjs check",
+    "pr": "node scripts/git-gate.mjs pr"
   },
   "devDependencies": {
     "prettier": "3.9.9",
     "wrangler": "4.148.0"
+  },
+  "engines": {
+    "node": "24.x"
   }
 }

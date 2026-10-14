@@ -105,11 +105,7 @@ export async function runChecks(root, suite) {
     throw new Error(
       "Use Node 24, matching hosted verification, then run npm run deps.",
     );
-  const env = {
-    ...process.env,
-    WRANGLER_SEND_METRICS: "false",
-    WRANGLER_HIDE_BANNER: "true",
-  };
+  const env = { ...process.env };
   for (const key of Object.keys(env))
     if (
       key.startsWith("GIT_") ||
@@ -143,7 +139,7 @@ export async function runChecks(root, suite) {
       : suite === "coverage"
         ? [
             "--experimental-test-coverage",
-            "--test-coverage-include=scripts/*.mjs",
+            "--test-coverage-include=scripts/*.*js",
           ]
         : []),
   ]);

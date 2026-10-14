@@ -3,8 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "wrangler dev --local",
-    "test": "node --test",
+    "dev": "node --require ./scripts/no-network.cjs node_modules/wrangler/bin/wrangler.js dev --local",
+    "test": "node --require ./scripts/no-network.cjs --test",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "deps": "node scripts/local-checks.mjs deps",

@@ -1,4 +1,8 @@
 // Local verification permits loopback bridges and Unix sockets only.
+process.env.WRANGLER_SEND_METRICS = "false";
+process.env.WRANGLER_HIDE_BANNER = "true";
+process.env.CLOUDFLARE_CF_FETCH_ENABLED = "false";
+
 const net = require("node:net");
 const connect = net.Socket.prototype.connect;
 net.Socket.prototype.connect = function (...input) {

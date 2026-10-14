@@ -1,12 +1,17 @@
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, realpathSync, rmSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { attachDependencies, runChecks } from "./local-checks.mjs";
 
 const repository = "sunpar/sundeepparuchuri.com";
-const destination = `git@github.com:${repository}.git`;
 
 function commandRunner(root) {
   const env = { ...process.env };
@@ -15,26 +20,27 @@ function commandRunner(root) {
   return (command, args, options = {}) =>
     execFileSync(command, args, {
       cwd: root,
-      env,
       encoding: "utf8",
       maxBuffer: 64 * 1024 * 1024,
       ...options,
+      env: { ...env, ...options.env },
     })?.trim();
 }
 
 export async function withSnapshot(root, { staged = false, ref }, action) {
   const directory = mkdtempSync(join(tmpdir(), "site-check-"));
+  const snapshot = join(directory, "snapshot");
   const run = commandRunner(root);
   try {
+    mkdirSync(snapshot);
     if (staged)
-      run("git", ["checkout-index", "--all", `--prefix=${directory}/`]);
+      run("git", ["checkout-index", "--all", `--prefix=${snapshot}/`]);
     else {
-      const archive = execFileSync("git", ["-C", root, "archive", ref], {
-        maxBuffer: 64 * 1024 * 1024,
-      });
-      run("tar", ["-x", "-C", directory], { input: archive });
+      const options = { env: { GIT_INDEX_FILE: join(directory, "index") } };
+      run("git", ["read-tree", ref], options);
+      run("git", ["checkout-index", "--all", `--prefix=${snapshot}/`], options);
     }
-    return await action(directory);
+    return await action(snapshot);
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
@@ -73,29 +79,32 @@ export async function gatePush(
       tips.add(sha);
       continue;
     }
-    const prs = JSON.parse(
+    const pages = JSON.parse(
       run("gh", [
-        "pr",
-        "list",
-        "--repo",
-        nameWithOwner,
-        "--state",
-        "open",
-        "--head",
-        branch,
-        "--json",
-        "headRepository,headRepositoryOwner",
+        "api",
+        `repos/${repository}/pulls`,
+        "--method",
+        "GET",
+        "-f",
+        "state=open",
+        "-f",
+        `head=${nameWithOwner.split("/")[0]}:${branch}`,
+        "-f",
+        "per_page=100",
+        "--paginate",
+        "--slurp",
       ]),
     );
-    if (!Array.isArray(prs))
+    if (!Array.isArray(pages) || !pages.every(Array.isArray))
       throw new Error(
         "PR lookup returned invalid data. Run gh auth status and retry the push.",
       );
-    const open = prs.some(
-      (pr) =>
-        `${pr.headRepositoryOwner.login}/${pr.headRepository.name}`.toLowerCase() ===
-        nameWithOwner.toLowerCase(),
-    );
+    const open = pages
+      .flat()
+      .some(
+        (pr) =>
+          pr.head.repo.full_name.toLowerCase() === nameWithOwner.toLowerCase(),
+      );
     if (open) tips.add(sha);
   }
   for (const sha of tips) {
@@ -146,8 +155,20 @@ export async function createPr(
       );
   }
   const branch = run("git", ["symbolic-ref", "--short", "HEAD"]);
+  if (branch === "main")
+    throw new Error(
+      "Create a feature branch before running npm run pr; main is the production branch.",
+    );
   const sha = run("git", ["rev-parse", "HEAD"]);
   await check(sha);
+  const destination = run("git", ["remote", "get-url", "--push", "origin"]);
+  const target = JSON.parse(
+    run("gh", ["repo", "view", destination, "--json", "nameWithOwner"]),
+  );
+  if (target.nameWithOwner.toLowerCase() !== repository)
+    throw new Error(
+      `The origin push URL must target ${repository}; correct it before running npm run pr.`,
+    );
   run("git", ["push", destination, `${sha}:refs/heads/${branch}`], {
     stdio: "inherit",
   });

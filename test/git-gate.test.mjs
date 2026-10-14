@@ -149,7 +149,7 @@ function github(root, mode) {
   const file = join(bin, "gh");
   writeFileSync(
     file,
-    `#!/bin/sh\ncase "$1 $2" in\n  "repo view") echo '{"nameWithOwner":"sunpar/sundeepparuchuri.com"}' ;;\n  "pr list")\n    echo "$*" >> '${join(root, ".git/gh-requests")}'\n    ${mode === "error" ? 'echo "GitHub unavailable: run gh auth status" >&2; exit 1' : mode === "malformed" ? "echo '{}'" : mode === "none" ? "echo '[]'" : `echo '[{"headRepository":{"name":"sundeepparuchuri.com"},"headRepositoryOwner":{"login":"sunpar"}}]'`}\n    ;;\n  *) echo "unexpected gh operation" >&2; exit 1 ;;\nesac\n`,
+    `#!/bin/sh\ncase "$1 $2" in\n  "repo view") echo '{"nameWithOwner":"sunpar/sundeepparuchuri.com"}' ;;\n  "api repos/sunpar/sundeepparuchuri.com/pulls")\n    echo "$*" >> '${join(root, ".git/gh-requests")}'\n    ${mode === "error" ? 'echo "GitHub unavailable: run gh auth status" >&2; exit 1' : mode === "malformed" ? "echo '{}'" : mode === "none" ? "echo '[[]]'" : `echo '[[{"head":{"repo":{"full_name":"sunpar/sundeepparuchuri.com"}}}]]'`}\n    ;;\n  *) echo "unexpected gh operation" >&2; exit 1 ;;\nesac\n`,
   );
   chmodSync(file, 0o755);
   return { PATH: `${bin}:${env.PATH}` };
@@ -181,7 +181,7 @@ test("real pre-push checks outgoing non-HEAD commits and destination branch name
   assert.match(output(result), /bad/);
   assert.match(
     readFileSync(join(root, ".git/gh-requests"), "utf8"),
-    /--head review/,
+    /head=sunpar:review/,
   );
   assert.equal(
     execFileSync("git", ["--git-dir", remote, "for-each-ref"], {
@@ -364,7 +364,7 @@ test("deletions and tags skip PR lookup; multiple branches verify each SHA once"
     (command, args) =>
       args[0] === "repo"
         ? '{"nameWithOwner":"sunpar/sundeepparuchuri.com"}'
-        : '[{"headRepository":{"name":"sundeepparuchuri.com"},"headRepositoryOwner":{"login":"sunpar"}}]',
+        : '[[{"head":{"repo":{"full_name":"sunpar/sundeepparuchuri.com"}}}]]',
     (sha) => checked.push(sha),
   );
   assert.deepEqual(checked, ["a".repeat(40)]);
@@ -374,6 +374,12 @@ test("the PR wrapper publishes the checked SHA to the fixed repository despite a
   const { root, git } = repository(t);
   const sha = git("rev-parse", "HEAD");
   const writes = [];
+  git(
+    "remote",
+    "add",
+    "origin",
+    "https://github.com/sunpar/sundeepparuchuri.com.git",
+  );
   await createPr(
     root,
     ["--draft", "--title", "Fixture PR"],
@@ -385,6 +391,8 @@ test("the PR wrapper publishes the checked SHA to the fixed repository despite a
       if (command === "git" && args[0] === "ls-remote")
         return `${sha}\trefs/heads/topic`;
       if (command === "git") return git(...args);
+      if (args[0] === "repo")
+        return '{"nameWithOwner":"sunpar/sundeepparuchuri.com"}';
       if (args[1] === "create") {
         writes.push(args);
         return "";
@@ -409,7 +417,7 @@ test("the PR wrapper publishes the checked SHA to the fixed repository despite a
   assert.deepEqual(writes, [
     [
       "push",
-      "git@github.com:sunpar/sundeepparuchuri.com.git",
+      "https://github.com/sunpar/sundeepparuchuri.com.git",
       `${sha}:refs/heads/topic`,
     ],
     [
@@ -426,4 +434,129 @@ test("the PR wrapper publishes the checked SHA to the fixed repository despite a
       "Fixture PR",
     ],
   ]);
+});
+
+test("PR creation refuses main before verification or publication", async (t) => {
+  const { root, git } = repository(t);
+  git("branch", "-M", "main");
+  const published = [];
+  await assert.rejects(
+    createPr(
+      root,
+      [],
+      (command, args) => {
+        if (
+          command === "git" &&
+          ["symbolic-ref", "rev-parse"].includes(args[0])
+        )
+          return git(...args);
+        published.push([command, args]);
+        throw new Error("unexpected publication");
+      },
+      () => {},
+    ),
+    /feature branch/,
+  );
+  assert.deepEqual(published, []);
+});
+
+test("committed snapshots ignore export attributes and preserve the active index", async (t) => {
+  const { root, git } = repository(t);
+  writeFileSync(
+    join(root, ".gitattributes"),
+    "test/** export-ignore\nvalue.txt export-subst\n",
+  );
+  writeFileSync(join(root, "value.txt"), "good $Format:%H$\n");
+  git("add", ".gitattributes", "value.txt");
+  git(
+    "-c",
+    "core.hooksPath=/dev/null",
+    "commit",
+    "-m",
+    "Set export attributes",
+  );
+  writeFileSync(join(root, "pending.txt"), "staged only\n");
+  git("add", "pending.txt");
+  const index = git("write-tree");
+  await withSnapshot(root, { ref: "HEAD" }, (snapshot) => {
+    assert.equal(existsSync(join(snapshot, "test/page.test.mjs")), true);
+    assert.equal(
+      readFileSync(join(snapshot, "value.txt"), "utf8"),
+      "good $Format:%H$\n",
+    );
+    assert.equal(existsSync(join(snapshot, "pending.txt")), false);
+  });
+  assert.equal(git("write-tree"), index);
+});
+
+test("fork pushes find their PR in the project base repository", async () => {
+  const checked = [];
+  await gatePush(
+    source,
+    "fork",
+    `refs/heads/local ${"b".repeat(40)} refs/heads/review ${"0".repeat(40)}`,
+    (command, args) => {
+      if (args[0] === "repo")
+        return '{"nameWithOwner":"contributor/sundeepparuchuri.com"}';
+      if (
+        args[0] === "api" &&
+        args[1] === "repos/sunpar/sundeepparuchuri.com/pulls" &&
+        args.includes("head=contributor:review")
+      )
+        return '[[{"head":{"repo":{"full_name":"contributor/sundeepparuchuri.com"}}}]]';
+      return "[]";
+    },
+    (sha) => checked.push(sha),
+  );
+  assert.deepEqual(checked, ["b".repeat(40)]);
+});
+
+test("matching PRs on later API pages still require verification", async () => {
+  const checked = [];
+  const foreign = {
+    head: { repo: { full_name: "other/sundeepparuchuri.com" } },
+    headRepository: { name: "sundeepparuchuri.com" },
+    headRepositoryOwner: { login: "other" },
+  };
+  const own = { head: { repo: { full_name: "sunpar/sundeepparuchuri.com" } } };
+  await gatePush(
+    source,
+    "origin",
+    `refs/heads/local ${"c".repeat(40)} refs/heads/review ${"0".repeat(40)}`,
+    (command, args) => {
+      if (args[0] === "repo")
+        return '{"nameWithOwner":"sunpar/sundeepparuchuri.com"}';
+      return args.includes("--paginate") && args.includes("--slurp")
+        ? JSON.stringify([Array(30).fill(foreign), [own]])
+        : JSON.stringify(Array(30).fill(foreign));
+    },
+    (sha) => checked.push(sha),
+  );
+  assert.deepEqual(checked, ["c".repeat(40)]);
+});
+
+test("PR creation refuses a configured origin pointing at another repository", async (t) => {
+  const { root, git } = repository(t);
+  git("remote", "add", "origin", "https://github.com/other/repo.git");
+  const published = [];
+  await assert.rejects(
+    createPr(
+      root,
+      [],
+      (command, args) => {
+        if (
+          command === "git" &&
+          ["symbolic-ref", "rev-parse", "remote"].includes(args[0])
+        )
+          return git(...args);
+        if (command === "gh" && args[0] === "repo")
+          return '{"nameWithOwner":"other/repo"}';
+        published.push([command, args]);
+        throw new Error("unexpected publication");
+      },
+      () => {},
+    ),
+    /origin.*sunpar\/sundeepparuchuri.com/,
+  );
+  assert.deepEqual(published, []);
 });

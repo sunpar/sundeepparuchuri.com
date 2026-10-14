@@ -77,7 +77,7 @@ function repository(t) {
     symlinkSync(
       join(source, "node_modules", name),
       join(root, "node_modules", name),
-      "dir",
+      "junction",
     );
   writeFileSync(
     join(root, "node_modules/.local-dependencies"),
@@ -347,6 +347,20 @@ test("main pushes require verification even without an open PR", (t) => {
   assert.match(output(push), /npm run deps/);
 });
 
+test("main-only pushes verify their commit when GitHub CLI is unavailable", async () => {
+  const checked = [];
+  await gatePush(
+    source,
+    "git@github.com:sunpar/sundeepparuchuri.com.git",
+    `refs/heads/local ${"d".repeat(40)} refs/heads/main ${"0".repeat(40)}`,
+    () => {
+      throw new Error("GitHub CLI unavailable");
+    },
+    (sha) => checked.push(sha),
+  );
+  assert.deepEqual(checked, ["d".repeat(40)]);
+});
+
 test("deletions and tags skip PR lookup; multiple branches verify each SHA once", async () => {
   await gatePush(
     source,
@@ -489,19 +503,35 @@ test("committed snapshots ignore export attributes and preserve the active index
   assert.equal(git("write-tree"), index);
 });
 
-test("fork pushes find their PR in the project base repository", async () => {
+test("fork pushes with SSH aliases find their PR in the project base repository", async (t) => {
+  const { root } = repository(t);
+  const config = join(root, ".git/ssh-config");
+  writeFileSync(config, "Host github-fixture\n  HostName github.com\n");
   const checked = [];
+  let lookups = 0;
   await gatePush(
-    source,
-    "fork",
-    `refs/heads/local ${"b".repeat(40)} refs/heads/review ${"0".repeat(40)}`,
+    root,
+    "git@github-fixture:contributor/sundeepparuchuri.com.git",
+    `refs/heads/local ${"b".repeat(40)} refs/heads/review ${"0".repeat(40)}\nrefs/heads/local ${"b".repeat(40)} refs/heads/second ${"0".repeat(40)}`,
     (command, args) => {
-      if (args[0] === "repo")
+      if (command === "ssh")
+        return execFileSync("ssh", ["-F", config, ...args], {
+          encoding: "utf8",
+          stdio: ["ignore", "pipe", "pipe"],
+        }).trim();
+      if (args[0] === "repo") {
+        assert.equal(
+          args[2],
+          "https://github.com/contributor/sundeepparuchuri.com.git",
+        );
+        lookups++;
         return '{"nameWithOwner":"contributor/sundeepparuchuri.com"}';
+      }
       if (
         args[0] === "api" &&
         args[1] === "repos/sunpar/sundeepparuchuri.com/pulls" &&
-        args.includes("head=contributor:review")
+        (args.includes("head=contributor:review") ||
+          args.includes("head=contributor:second"))
       )
         return '[[{"head":{"repo":{"full_name":"contributor/sundeepparuchuri.com"}}}]]';
       return "[]";
@@ -509,6 +539,106 @@ test("fork pushes find their PR in the project base repository", async () => {
     (sha) => checked.push(sha),
   );
   assert.deepEqual(checked, ["b".repeat(40)]);
+  assert.equal(lookups, 1);
+});
+
+for (const destination of [
+  "git@github-fixture:sunpar/sundeepparuchuri.com.git",
+  "ssh://git@github-fixture:2222/sunpar/sundeepparuchuri.com.git",
+]) {
+  test(`PR creation resolves ${destination} and preserves its push transport`, async (t) => {
+    const { root, git } = repository(t);
+    git("remote", "add", "origin", "https://github.com/other/fetch.git");
+    git("remote", "set-url", "--push", "origin", destination);
+    const config = join(root, ".git/ssh-config");
+    writeFileSync(
+      config,
+      "Match host github-fixture user git\n  HostName github.com\n",
+    );
+    const sha = git("rev-parse", "HEAD");
+    const published = [];
+    await createPr(
+      root,
+      [],
+      (command, args) => {
+        if (command === "ssh") {
+          if (destination.startsWith("ssh://"))
+            assert.equal(args[args.indexOf("-p") + 1], "2222");
+          return execFileSync("ssh", ["-F", config, ...args], {
+            encoding: "utf8",
+            stdio: ["ignore", "pipe", "pipe"],
+          }).trim();
+        }
+        if (command === "git" && args[0] === "push") {
+          published.push(args);
+          return "";
+        }
+        if (command === "git" && args[0] === "ls-remote") {
+          assert.equal(args[1], destination);
+          return `${sha}\trefs/heads/topic`;
+        }
+        if (command === "git") return git(...args);
+        if (args[0] === "repo") {
+          assert.equal(
+            args[2],
+            "https://github.com/sunpar/sundeepparuchuri.com.git",
+          );
+          return '{"nameWithOwner":"sunpar/sundeepparuchuri.com"}';
+        }
+        if (args[1] === "create") {
+          published.push(args);
+          return "";
+        }
+        return JSON.stringify({
+          url: "https://github.com/sunpar/sundeepparuchuri.com/pull/123",
+          headRefOid: sha,
+        });
+      },
+      () => {},
+    );
+    assert.deepEqual(published[0], [
+      "push",
+      destination,
+      `${sha}:refs/heads/topic`,
+    ]);
+    assert.equal(published[1][1], "create");
+  });
+}
+
+test("PR creation refuses an SSH alias resolving to another host before publication", async (t) => {
+  const { root, git } = repository(t);
+  git(
+    "remote",
+    "add",
+    "origin",
+    "git@github-fixture:sunpar/sundeepparuchuri.com.git",
+  );
+  const config = join(root, ".git/ssh-config");
+  writeFileSync(
+    config,
+    "Host github-fixture\n  HostName other.example.invalid\n",
+  );
+  await assert.rejects(
+    createPr(
+      root,
+      [],
+      (command, args) => {
+        if (command === "ssh")
+          return execFileSync("ssh", ["-F", config, ...args], {
+            encoding: "utf8",
+            stdio: ["ignore", "pipe", "pipe"],
+          }).trim();
+        if (
+          command === "git" &&
+          ["symbolic-ref", "rev-parse", "remote"].includes(args[0])
+        )
+          return git(...args);
+        throw new Error("unexpected publication or GitHub lookup");
+      },
+      () => {},
+    ),
+    /SSH.*github\.com/,
+  );
 });
 
 test("matching PRs on later API pages still require verification", async () => {

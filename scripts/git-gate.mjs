@@ -27,6 +27,30 @@ function commandRunner(root) {
     })?.trim();
 }
 
+function githubRepository(remote, run) {
+  const scp = !remote.includes("://") && remote.match(/^([^/]+):(.+)$/);
+  const ssh = remote.startsWith("ssh://")
+    ? new URL(remote)
+    : scp && new URL(`ssh://${scp[1]}/${scp[2]}`);
+  if (ssh) {
+    const host = run("ssh", [
+      "-G",
+      ...(ssh.port ? ["-p", ssh.port] : []),
+      `${ssh.username ? `${decodeURIComponent(ssh.username)}@` : ""}${ssh.hostname}`,
+    ])
+      .match(/^hostname (\S+)$/m)[1]
+      .toLowerCase();
+    if (!["github.com", "ssh.github.com"].includes(host))
+      throw new Error(
+        "The SSH push URL must resolve to github.com or ssh.github.com.",
+      );
+    remote = `https://github.com${ssh.pathname}`;
+  }
+  return JSON.parse(
+    run("gh", ["repo", "view", remote, "--json", "nameWithOwner"]),
+  ).nameWithOwner;
+}
+
 export async function withSnapshot(root, { staged = false, ref }, action) {
   const directory = mkdtempSync(join(tmpdir(), "site-check-"));
   const snapshot = join(directory, "snapshot");
@@ -69,9 +93,7 @@ export async function gatePush(
       ([, sha, ref]) => !/^0+$/.test(sha) && ref.startsWith("refs/heads/"),
     );
   if (!updates.length) return;
-  const { nameWithOwner } = JSON.parse(
-    run("gh", ["repo", "view", remote, "--json", "nameWithOwner"]),
-  );
+  let nameWithOwner;
   const tips = new Set();
   for (const [, sha, ref] of updates) {
     const branch = ref.slice("refs/heads/".length);
@@ -79,6 +101,7 @@ export async function gatePush(
       tips.add(sha);
       continue;
     }
+    nameWithOwner ??= githubRepository(remote, run);
     const pages = JSON.parse(
       run("gh", [
         "api",
@@ -162,10 +185,7 @@ export async function createPr(
   const sha = run("git", ["rev-parse", "HEAD"]);
   await check(sha);
   const destination = run("git", ["remote", "get-url", "--push", "origin"]);
-  const target = JSON.parse(
-    run("gh", ["repo", "view", destination, "--json", "nameWithOwner"]),
-  );
-  if (target.nameWithOwner.toLowerCase() !== repository)
+  if (githubRepository(destination, run).toLowerCase() !== repository)
     throw new Error(
       `The origin push URL must target ${repository}; correct it before running npm run pr.`,
     );

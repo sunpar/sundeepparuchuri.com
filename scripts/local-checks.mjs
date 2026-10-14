@@ -45,7 +45,7 @@ export function attachDependencies(source, target) {
   symlinkSync(
     join(source, "node_modules"),
     join(target, "node_modules"),
-    "dir",
+    "junction",
   );
 }
 

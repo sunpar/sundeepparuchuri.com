@@ -15,8 +15,12 @@ const repository = "sunpar/sundeepparuchuri.com";
 
 function commandRunner(root) {
   const env = { ...process.env };
-  for (const key of Object.keys(env))
-    if (key.startsWith("GIT_") && key !== "GIT_INDEX_FILE") delete env[key];
+  for (const key of execFileSync("git", ["rev-parse", "--local-env-vars"], {
+    encoding: "utf8",
+  })
+    .trim()
+    .split("\n"))
+    if (key !== "GIT_INDEX_FILE") delete env[key];
   return (command, args, options = {}) =>
     execFileSync(command, args, {
       cwd: root,
@@ -54,16 +58,23 @@ function githubRepository(remote, run) {
 export async function withSnapshot(root, { staged = false, ref }, action) {
   const directory = mkdtempSync(join(tmpdir(), "site-check-"));
   const snapshot = join(directory, "snapshot");
-  const run = commandRunner(root);
   try {
+    const run = commandRunner(root);
     mkdirSync(snapshot);
-    if (staged)
-      run("git", ["checkout-index", "--all", `--prefix=${snapshot}/`]);
-    else {
-      const options = { env: { GIT_INDEX_FILE: join(directory, "index") } };
-      run("git", ["read-tree", ref], options);
-      run("git", ["checkout-index", "--all", `--prefix=${snapshot}/`], options);
-    }
+    const options = staged
+      ? {}
+      : { env: { GIT_INDEX_FILE: join(directory, "index") } };
+    if (!staged) run("git", ["read-tree", ref], options);
+    run(
+      "git",
+      [
+        "checkout-index",
+        "--all",
+        "--ignore-skip-worktree-bits",
+        `--prefix=${snapshot}/`,
+      ],
+      options,
+    );
     return await action(snapshot);
   } finally {
     rmSync(directory, { recursive: true, force: true });
@@ -106,6 +117,8 @@ export async function gatePush(
       run("gh", [
         "api",
         `repos/${repository}/pulls`,
+        "--hostname",
+        "github.com",
         "--method",
         "GET",
         "-f",
@@ -207,7 +220,7 @@ export async function createPr(
       "pr",
       "create",
       "--repo",
-      repository,
+      `github.com/${repository}`,
       "--head",
       branch,
       "--assignee",
@@ -222,7 +235,7 @@ export async function createPr(
       "view",
       branch,
       "--repo",
-      repository,
+      `github.com/${repository}`,
       "--json",
       "url,headRefOid",
     ]),

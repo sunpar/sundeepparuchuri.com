@@ -15,7 +15,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { fingerprint } from "../scripts/local-checks.mjs";
 import { withSnapshot, gatePush, createPr } from "../scripts/git-gate.mjs";
 
@@ -131,6 +131,24 @@ test("commit capture respects an alternate active index", (t) => {
   assert.equal(git("show", ":value.txt"), "good");
 });
 
+test("sparse checkout checks materialize files outside the sparse cone", async (t) => {
+  const { root, git, run } = repository(t);
+  git("sparse-checkout", "init", "--cone");
+  git("sparse-checkout", "set", "public", "scripts", ".githooks");
+  assert.equal(existsSync(join(root, "test/page.test.mjs")), false);
+  const index = git("write-tree");
+  const result = run("commit");
+  assert.equal(result.status, 0, output(result));
+  for (const selection of [{ staged: true }, { ref: "HEAD" }])
+    await withSnapshot(root, selection, (snapshot) => {
+      assert.equal(
+        readFileSync(join(snapshot, "test/page.test.mjs"), "utf8"),
+        git("show", "HEAD:test/page.test.mjs") + "\n",
+      );
+    });
+  assert.equal(git("write-tree"), index);
+});
+
 test("missing or mismatched dependencies stop the hook with setup instructions", (t) => {
   const { root, run } = repository(t);
   rmSync(join(root, "node_modules/.local-dependencies"));
@@ -149,7 +167,7 @@ function github(root, mode) {
   const file = join(bin, "gh");
   writeFileSync(
     file,
-    `#!/bin/sh\ncase "$1 $2" in\n  "repo view") echo '{"nameWithOwner":"sunpar/sundeepparuchuri.com"}' ;;\n  "api repos/sunpar/sundeepparuchuri.com/pulls")\n    echo "$*" >> '${join(root, ".git/gh-requests")}'\n    ${mode === "error" ? 'echo "GitHub unavailable: run gh auth status" >&2; exit 1' : mode === "malformed" ? "echo '{}'" : mode === "none" ? "echo '[[]]'" : `echo '[[{"head":{"repo":{"full_name":"sunpar/sundeepparuchuri.com"}}}]]'`}\n    ;;\n  *) echo "unexpected gh operation" >&2; exit 1 ;;\nesac\n`,
+    `#!/bin/sh\ncase "$1 $2" in\n  "repo view") echo '{"nameWithOwner":"sunpar/sundeepparuchuri.com"}' ;;\n  "api repos/sunpar/sundeepparuchuri.com/pulls")\n    echo "$*" >> '${join(root, ".git/gh-requests")}'\n    if [ -n "$GH_HOST" ]; then\n      case " $* " in\n        *" --hostname github.com "*) ;;\n        *) echo '[[]]'; exit 0 ;;\n      esac\n    fi\n    ${mode === "error" ? 'echo "GitHub unavailable: run gh auth status" >&2; exit 1' : mode === "malformed" ? "echo '{}'" : mode === "none" ? "echo '[[]]'" : `echo '[[{"head":{"repo":{"full_name":"sunpar/sundeepparuchuri.com"}}}]]'`}\n    ;;\n  *) echo "unexpected gh operation" >&2; exit 1 ;;\nesac\n`,
   );
   chmodSync(file, 0o755);
   return { PATH: `${bin}:${env.PATH}` };
@@ -175,7 +193,15 @@ test("real pre-push checks outgoing non-HEAD commits and destination branch name
   const result = spawnSync(
     "git",
     ["push", remote, `${bad}:refs/heads/review`],
-    { cwd: root, env: { ...env, ...github(root, "open") }, encoding: "utf8" },
+    {
+      cwd: root,
+      env: {
+        ...env,
+        ...github(root, "open"),
+        GH_HOST: "enterprise.example.invalid",
+      },
+      encoding: "utf8",
+    },
   );
   assert.notEqual(result.status, 0, output(result));
   assert.match(output(result), /bad/);
@@ -234,6 +260,52 @@ test("the PR wrapper stops before publishing when full verification fails", (t) 
   assert.notEqual(result.status, 0, output(result));
   assert.match(output(result), /npm run deps/);
   assert.equal(existsSync(join(root, ".git/gh-requests")), false);
+});
+
+test("PR publication preserves Git authentication variables for push and ls-remote", (t) => {
+  const { root, git } = repository(t);
+  git(
+    "remote",
+    "add",
+    "origin",
+    "https://github.com/sunpar/sundeepparuchuri.com.git",
+  );
+  const sha = git("rev-parse", "HEAD");
+  const remote = join(root, ".git/remote.git");
+  execFileSync("git", ["init", "--bare", remote], { env, stdio: "ignore" });
+  const bin = join(root, ".git/test-bin");
+  mkdirSync(bin);
+  const realGit = execFileSync("which", ["git"], { encoding: "utf8" }).trim();
+  writeFileSync(
+    join(bin, "git"),
+    `#!/bin/sh\ncase "$1" in\n  push|ls-remote)\n    if [ "$GIT_SSH_COMMAND" != 'ssh -i fixture-key' ] || [ "$GIT_ASKPASS" != 'fixture-askpass' ]; then\n      echo 'Git authentication configuration was removed' >&2; exit 1\n    fi\n    operation="$1"; shift 2\n    exec '${realGit}' "$operation" '${remote}' "$@" ;;\n  *) exec '${realGit}' "$@" ;;\nesac\n`,
+  );
+  writeFileSync(
+    join(bin, "gh"),
+    `#!/bin/sh\ncase "$1 $2" in\n  "repo view") echo '{"nameWithOwner":"sunpar/sundeepparuchuri.com"}' ;;\n  "api repos/sunpar/sundeepparuchuri.com/pulls") echo '[[]]' ;;\n  "pr create") exit 0 ;;\n  "pr view") echo '{"url":"https://github.com/sunpar/sundeepparuchuri.com/pull/123","headRefOid":"${sha}"}' ;;\n  *) exit 1 ;;\nesac\n`,
+  );
+  for (const file of ["git", "gh"]) chmodSync(join(bin, file), 0o755);
+  const result = spawnSync(
+    process.execPath,
+    [
+      "--input-type=module",
+      "-e",
+      `import {createPr} from ${JSON.stringify(pathToFileURL(gate).href)}; await createPr(process.argv[1], [], undefined, () => {});`,
+      root,
+    ],
+    {
+      cwd: root,
+      env: {
+        ...env,
+        PATH: `${bin}:${env.PATH}`,
+        GIT_SSH_COMMAND: "ssh -i fixture-key",
+        GIT_ASKPASS: "fixture-askpass",
+      },
+      encoding: "utf8",
+    },
+  );
+  assert.equal(result.status, 0, output(result));
+  assert.equal(git("--git-dir", remote, "rev-parse", "refs/heads/topic"), sha);
 });
 
 test("the PR wrapper rejects repository, head, web and dry-run overrides", (t) => {
@@ -411,6 +483,10 @@ test("the PR wrapper publishes the checked SHA to the fixed repository despite a
         writes.push(args);
         return "";
       }
+      assert.equal(
+        args[args.indexOf("--repo") + 1],
+        "github.com/sunpar/sundeepparuchuri.com",
+      );
       return JSON.stringify({
         url: "https://github.com/sunpar/sundeepparuchuri.com/pull/123",
         headRefOid: sha,
@@ -438,7 +514,7 @@ test("the PR wrapper publishes the checked SHA to the fixed repository despite a
       "pr",
       "create",
       "--repo",
-      "sunpar/sundeepparuchuri.com",
+      "github.com/sunpar/sundeepparuchuri.com",
       "--head",
       "topic",
       "--assignee",
